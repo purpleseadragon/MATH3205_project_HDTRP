@@ -1,5 +1,6 @@
 import gurobipy as gp
 import math
+import matplotlib.pyplot as plt
 
 # data
 # P-n16-k8 augerat problem
@@ -34,19 +35,19 @@ N_st['s'] = s
 N_st['t'] = t
 
 
-print(N_s == N_t)
 # default data
 drone_num = 2
 drone_speeds = [2.5, 2.5]
+drone_battery = B = [100, 100]
 truck_speed = 1
 truck_service_time = 10
 drone_flight_duration = 100
 drone_service_time = 5
-
+M = 1000000
+L = range(len(drone_speeds))
 
 # generate arcs
 A = [(i,j) for i in N_s for j in N_t if i != j]
-
 
 # generate arc distances
 def generate_distances(all_arcs):
@@ -57,16 +58,24 @@ def generate_distances(all_arcs):
     return distances
 
 def dist_betw_arcs(arc1, arc2):
+    """generates distance between arcs"""
     return math.sqrt((arc1[0] - arc2[0])**2 + (arc1[1] - arc2[1])**2)
 
 # generate truck wait time
 T_v = {(i,j): truck_service_time + dist_betw_arcs(N_st[i], N_st[j])/truck_speed for (i,j) in A}
 
+# generate battery usages for drones 
+b_l = {(i,j,l): generate_distances(A)[A.index((i,j))]/drone_speeds[l] for (i,j) in A for l in L}
 
-def MIP(N, N_s, N_t, N_st, A, dist):
+# generate drone delivery times, includes service time
+tau_l = {(i,j,l): generate_distances(A)[A.index((i,j))]/drone_speeds[l] + drone_service_time for (i,j) in A for l in L}
+
+def plot_path():
+    pass
+
+def MIP(N, N_s, N_t, N_st, A):
     # s is first node (source)
     # t is last node (sink)
-    L = range(len(drone_speeds))
 
     # create model
     m = gp.Model("MIP_implementation")
@@ -81,23 +90,40 @@ def MIP(N, N_s, N_t, N_st, A, dist):
     m.setObjective(gp.quicksum(T_v[i,j]*X[i,j] for (i,j) in A) + gp.quicksum(W[i] for i in N_s), gp.GRB.MINIMIZE)
 
     # constraints
-    departFromDepot = m.addConstr(gp.quicksum(X[0,] for j in N) == 1) # truck must depart from depot
+    departFromDepot = m.addConstr(gp.quicksum(X["s",j] for j in N) == 1) # truck must depart from depot
 
-    returnToDepot = m.addConstr(gp.quicksum(X[i,len(N_s)] for i in N) == 1) # truck must return to depot
+    returnToDepot = m.addConstr(gp.quicksum(X[i,"t"] for i in N) == 1) # truck must return to depot
 
     flowConservation = {i:
-        m.addConstr(gp.quicksum(X[i+1,j+1] for j in N_t if j != i) - gp.quicksum(X[j+1,i+1] for j in N_t if j != i) == 0)
+        m.addConstr(gp.quicksum(X[i,j] for j in N_t if j != i) - gp.quicksum(X[j,i] for j in N_s if j != i) == 0)
         for i in N} 
     
-    # subTourElimination = {(i,j):
-    # }
+    subTourElimination = {(i,j): 
+        m.addConstr(V[i] - V[j] <= M*(1-X[i,j])-1)
+        for (i,j) in A}
+
+    visitEachNode = {j: 
+        m.addConstr(gp.quicksum(X[i,j] for i in N_s if i != j) + gp.quicksum(H[i,j,l] for i in N_s for l in L if i != j) == 1)
+        for j in N}
+    
+    droneDispatch = {i:
+        m.addConstr(M*gp.quicksum(X[i,j] for j in N_t if j != i) >= gp.quicksum(H[i,j,l] for j in N for l in L if j != i))
+        for i in N_s}
+
+    batteryConsumption = {l:
+        m.addConstr(gp.quicksum(H[i,j,l]*b_l[i,j,l] for (i,j) in A) <= B[l])
+        for l in L}
+
+    waitTime = {(i,l):
+        m.addConstr(W[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
+        for i in N_s for l in L}
+
+    m.addConstr(V["s"]==0)
 
     m.optimize()
 
 if __name__ == "__main__":
     #MIP(node_distance, drones)
     # print(N, N_s, N_t,N_st)
-    distances = generate_distances(A)
-    print(A[:100])
     # print(distances[:20])
-    MIP(N, N_s, N_t, N_st, A, distances)
+    MIP(N, N_s, N_t, N_st, A)
