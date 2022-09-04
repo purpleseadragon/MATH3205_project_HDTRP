@@ -1,0 +1,6 @@
+My subtour constraints aren't working.
+Tried to debug for a while today (friday) but cant really work out where the issue is. 
+I don't think some of my constants are correct because I'm getting ~260 instead of the desired 170. This is hard to tell
+because I'm not positive whether the constraints are working / correct. 
+Probably going to have another proper go at fixing it on Sunday. I'll also try some extra data sets to see if I get
+similar errors in my results.
