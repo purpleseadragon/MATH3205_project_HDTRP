@@ -1,6 +1,8 @@
 **/.venv
 **/__pycache__
+**/backups
 **.pdf
 **.jpg
+**.png
 extra.py
 notes.txt
