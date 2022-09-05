@@ -24,6 +24,47 @@ p_n16_k8= {
 
 p_n16_k8_s = (30, 40)
 
+# A-n37-k5
+a_n37_k5 = {
+'n0 ':(59, 46),
+'n1 ':(96 ,42),
+'n2 ':(47 ,61),
+'n3 ':(26 ,15),
+'n4 ':(66 ,6 ),
+'n5 ':(96 ,7 ),
+'n6 ':(37 ,25),
+'n7 ':(68 ,92),
+'n8 ':(78 ,84),
+'n9 ':(82 ,28),
+'n10':(93, 90),
+'n11':(74, 42),
+'n12':(60, 20),
+'n13':(78, 58),
+'n14':(36, 48),
+'n15':(45, 36),
+'n16':(73, 57),
+'n17':(10, 91),
+'n18':(98, 51),
+'n19':(92, 62),
+'n20':(43, 42),
+'n21':(53, 25),
+'n22':(78, 65),
+'n23':(72, 79),
+'n24':(37, 88),
+'n25':(16, 73),
+'n26':(75, 96),
+'n27':(11, 66),
+'n28':(9 ,49 ),
+'n29':(25, 72),
+'n30':(8 ,68 ),
+'n31':(12, 61),
+'n32':(50, 2 ),
+'n33':(26, 54),
+'n34':(18, 89),
+'n35':(22, 53)
+}
+
+a_n37_k5_s = (38, 46)
 
 # default data
 drone_num = 2
@@ -34,7 +75,6 @@ truck_speed = 1
 truck_service_time = 10
 drone_flight_duration = 100
 drone_service_time = 5
-# M = 1000000
 L = range(len(a))
 
 
@@ -55,18 +95,22 @@ def MIP(N, s):
     A = [(i,j) for i in N_s for j in N_t if N_s[i] != N_t[j]]
     M = len(A)+1
 
+    # generate arc distances
+    D = generate_distances(A, N_st)
+
     # generate truck wait time!!!!!!!!!!!!!!!!!!!!!
-    T_v = {(i,j): truck_service_time + generate_distances(A, N_st)[A.index((i,j))]/truck_speed for (i,j) in A}
+    T_v = {(i,j): truck_service_time + D[i,j]/truck_speed for (i,j) in A}
 
-    # generate drone delivery times (battery usage), includes service time !!!!!!!!!!!!!!!!!
-    b_l = {(i,j,l): a[l]*((generate_distances(A, N_st)[A.index((i,j))]*2/drone_speeds) + drone_service_time) for i in N_s for j in N for l in L if i != j}
+    # generate drone delivery times (battery usage), includes service time !!!!!!!!!!!!!!!!! -> why would service time affect drone battery usage?
+    b_l = {(i,j,l): a[l]*((D[i,j]*2)/(drone_speeds) + drone_service_time) for i in N_s for j in N for l in L if i != j}
 
-    # total required ddelivery time
-    tau_l = {(i,j,l): (generate_distances(A, N_st)[A.index((i,j))]*2)/(drone_speeds*a[l]) + drone_service_time for i in N_s for j in N for l in L if i != j}
+    # total required delivery time
+    tau_l = {(i,j,l): (D[i,j]*2)/(drone_speeds*a[l]) + drone_service_time for i in N_s for j in N for l in L if i != j}
+
     # !!!! model !!!!
     m = gp.Model("MIP_implementation")
 
-    # create variables
+    # variables
     X = {(i,j): m.addVar(vtype=gp.GRB.BINARY) for (i,j) in A} # if truck travels from i to j
     H = {(i,j,l): m.addVar(vtype=gp.GRB.BINARY) for i in N_s for j in N for l in L} # if drone l travels from i to j
     V = {i: m.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_st} # visiting order of truck at node i
@@ -86,7 +130,6 @@ def MIP(N, s):
                     gp.quicksum(X[j,i] for j in N_s if j != i))
         for i in N}
 
-    # !!! think this might be wrong !!!
     # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     subTourElimination = {(i,j): 
         m.addConstr(V[i] - V[j] <= M*(1-X[i,j])-1) 
@@ -110,20 +153,22 @@ def MIP(N, s):
         m.addConstr(W[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
         for i in N_s for l in L}
 
-    initConstr = m.addConstr(V['s']==0)
-        
-    # m.addConstr(V["s"]==0)
+    initConstr = m.addConstr(V['s']==0) 
 
     m.optimize()
+
     X_vals = {(i,j): X[i,j].x for (i,j) in A}
     H_vals = {(i,j,l): H[i,j,l].x for i in N_s for j in N for l in L}
     V_vals = {i: V[i].x for i in N_st}
-    if True:
-        print(V_vals)
-        print(f"battery usage: {[sum([H_vals[i,j,l]*b_l[i,j,l] for i in N_s for j in N if i != j]) for l in L]}") # print out battery usage
+
+    if False:
+        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+        print(f"battery usage: {[sum([H_vals[i,j,l]*b_l[i,j,l] for i in N_s for j in N if i != j]) for l in L]}")
         print(f"truck path: {[(i,j) for (i,j) in A if X_vals[i,j] > 0.9]}")
-        print(f"drone decisions{[(i,j,l) for i in N_s for j in N for l in L if H_vals[i,j,l] > 0.9]}")
+        print(f"drone decisions: {[(i,j,l) for i in N_s for j in N for l in L if H_vals[i,j,l] > 0.9]}")
         print(f"order: {[V_vals[i] for i in V_vals]}")
+    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+
     return X_vals, H_vals, V_vals, N, N_s, N_st, A
 
 
@@ -137,6 +182,8 @@ if __name__ == "__main__":
     # print(V)
     # print([X["s",j] for j in N])
     # print([X[i,"t"] for i in N])
-    X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(p_n16_k8,p_n16_k8_s)
+    X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(p_n16_k8,p_n16_k8_s) # Best objective 2.015393143872e+02, 174 (modding eqn) vs 177.2
     peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
-    # Plot truck routs
+    if True:
+        X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 7.134488642268e+02, 635 (modding eqn) vs 677.7
+        peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)

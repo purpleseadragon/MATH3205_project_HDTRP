@@ -6,9 +6,9 @@ import math
 # generate arc distances
 def generate_distances(all_arcs, N_st):
     """distances correspond to arc distance from i to j in arc (i,j)"""
-    distances = []
+    distances = dict()
     for x in all_arcs:
-        distances.append(math.sqrt((N_st[x[0]][0] - N_st[x[1]][0])**2 + (N_st[x[0]][1] - N_st[x[1]][1])**2))
+        distances[x] = (math.sqrt((N_st[x[0]][0] - N_st[x[1]][0])**2 + (N_st[x[0]][1] - N_st[x[1]][1])**2))
     return distances
 
 def dist_betw_arcs(arc1, arc2):
@@ -16,7 +16,7 @@ def dist_betw_arcs(arc1, arc2):
     return math.sqrt((arc1[0] - arc2[0])**2 + (arc1[1] - arc2[1])**2)
 
 
-def plot_path(X,H, N, N_s, N_st, A):
+def plot_path(X,H, N, N_s, N_st, A, L):
     """Takes X and H variables and plots the truck and drone routes respectively"""
     # get path
     path = []
@@ -41,6 +41,7 @@ def plot_path(X,H, N, N_s, N_st, A):
     plt.show()
 
 def peter_plot_path(X,H, N, N_s, N_st, A):
+    """Peter's code for plotting"""
     verts = []
     for (i,j) in A:
         if X[i,j] > 0.9:
