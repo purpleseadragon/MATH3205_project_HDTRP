@@ -38,13 +38,10 @@ drone_service_time = 5
 L = range(len(a))
 
 
-
-
-
-# s is first node (source depot)
-# t is last node (sink depot)
 def MIP(N, s):
     """Takes in a dictionary of nodes and a source node and returns the optimal solution"""  
+    # s is first node (source depot)
+    # t is last node (sink depot)
     N_s = N.copy()
     N_t = N.copy()
     N_st = N.copy()
