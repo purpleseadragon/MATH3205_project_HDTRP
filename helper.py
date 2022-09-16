@@ -121,3 +121,30 @@ def peter_plot_path(X,H, N, N_s, N_st, A):
     # ax.set_xlim(20, 70)
     # ax.set_ylim(20, 80)
     plt.show()
+
+def find_sets(X_vals, A):
+    """finds subtours -> used for subtour lazy constraints"""
+    all_tours = []
+    all_tours.append(set())
+    # first subtour made up of source and sink node tour
+    for (i,j) in A:
+        if X_vals[i,j] > 0.9:
+            if i == "s":
+                all_tours[0].add((i,j))
+            elif j == "t":
+                all_tours[0].add((i,j))
+
+    # find additional subtours
+    for (i,j) in A:
+        if X_vals[i,j] > 0.9:
+            added = False # boolean for if the arc has been added to subtour set yet
+            for subtour in all_tours:
+                for (y,z) in subtour:
+                    if i == z or i == y:
+                        subtour.add((i,j))
+                        added = True
+                        break
+            if not added:
+                all_tours.append(set())
+                all_tours[-1].add((i,j))
+    return all_tours
