@@ -70,7 +70,7 @@ a_n37_k5_s = (38, 46)
 drone_num = 2
 drone_speeds = 2.5#[1, 1.5]
 a = [1, 1.5]
-drone_battery = B_l = [100, 100] # max flight time
+drone_battery = B_l = [100, 130] # max flight time
 truck_speed = 1
 truck_service_time = 10
 drone_flight_duration = 100
@@ -116,8 +116,8 @@ def MIP(N, s):
     V = {i: m.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_st} # visiting order of truck at node i
     W = {i: m.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s} # Wait time at node i
 
-    # set objective
-    m.setObjective(gp.quicksum(T_v[i,j]*X[i,j] for (i,j) in A) + gp.quicksum(W[i] for i in N_s), gp.GRB.MINIMIZE)
+    # set objective (subtracking service time for back to depot)
+    m.setObjective(gp.quicksum(T_v[i,j]*X[i,j] for (i,j) in A) + gp.quicksum(W[i] for i in N_s) - truck_service_time, gp.GRB.MINIMIZE)
 
     # constraints
     departFromDepot = m.addConstr(gp.quicksum(X["s",j] for j in N) == 1) # truck must depart from depot
@@ -173,17 +173,8 @@ def MIP(N, s):
 
 
 if __name__ == "__main__":
-    #MIP(node_distance, drones)
-    # print(N, N_s, N_t,N_st)
-    # print(distances[:20])
-    # print([T_v[i,j] for (i,j) in A[:20]])
-    # print([b_l[i,j,l] for (i,j) in A[:20] for l in L])
-    # print([tau_l[i,j,l] for (i,j) in A[:20] for l in L])
-    # print(V)
-    # print([X["s",j] for j in N])
-    # print([X[i,"t"] for i in N])
     X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(p_n16_k8,p_n16_k8_s) # Best objective 2.015393143872e+02, 174 (modding eqn) vs 177.2
     peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
-    if True:
-        X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 7.134488642268e+02, 635 (modding eqn) vs 677.7
-        peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
+
+    X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 
+    peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)

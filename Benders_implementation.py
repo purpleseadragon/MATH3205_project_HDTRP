@@ -79,111 +79,114 @@ drone_service_time = 5
 L = range(len(a))
 
 
-N = p_n16_k8
-s = p_n16_k8_s
-if False:
-    N = a_n37_k5 
-    s = a_n37_k5_s 
-# s is first node (source depot)
-# t is last node (sink depot)
-N_s = N.copy()
-N_t = N.copy()
-N_st = N.copy()
-t = s
-N_t['t'] = t
-N_s['s'] = s
-N_st['s'] = s
-N_st['t'] = t
 
-# generate arcs
-A = [(i,j) for i in N_s for j in N_t if N_s[i] != N_t[j]]
-M = len(A)+1
+def MIP(N, s):
+    """Takes in a dictionary of nodes and a source node and returns the optimal solution"""  
+    # s is first node (source depot)
+    # t is last node (sink depot)
+    N_s = N.copy()
+    N_t = N.copy()
+    N_st = N.copy()
+    t = s
+    N_t['t'] = t
+    N_s['s'] = s
+    N_st['s'] = s
+    N_st['t'] = t
 
-# generate arc distances
-D = generate_distances(A, N_st)
+    # generate arcs
+    A = [(i,j) for i in N_s for j in N_t if N_s[i] != N_t[j]]
+    M = len(A)+1
 
-# generate truck wait time!!!!!!!!!!!!!!!!!!!!!
-T_v = {(i,j): truck_service_time + D[i,j]/truck_speed for (i,j) in A}
+    # generate arc distances
+    D = generate_distances(A, N_st)
 
-# generate drone delivery times (battery usage), includes service time !!!!!!!!!!!!!!!!! -> why would service time affect drone battery usage?
-b_l = {(i,j,l): a[l]*((D[i,j]*2)/(drone_speeds) + drone_service_time) for i in N_s for j in N for l in L if i != j}
+    # generate truck wait time!!!!!!!!!!!!!!!!!!!!!
+    T_v = {(i,j): truck_service_time + D[i,j]/truck_speed for (i,j) in A}
 
-# total required delivery time
-tau_l = {(i,j,l): (D[i,j]*2)/(drone_speeds*a[l]) + drone_service_time for i in N_s for j in N for l in L if i != j}
+    # generate drone delivery times (battery usage), includes service time !!!!!!!!!!!!!!!!! -> why would service time affect drone battery usage?
+    b_l = {(i,j,l): a[l]*((D[i,j]*2)/(drone_speeds) + drone_service_time) for i in N_s for j in N for l in L if i != j}
 
-# !!!! model !!!!
-m = gp.Model("MIP_implementation")
+    # total required delivery time
+    tau_l = {(i,j,l): (D[i,j]*2)/(drone_speeds*a[l]) + drone_service_time for i in N_s for j in N for l in L if i != j}
 
-# variables
-X = {(i,j): m.addVar(vtype=gp.GRB.BINARY) for (i,j) in A} # if truck travels from i to j
-H = {(i,j,l): m.addVar(vtype=gp.GRB.BINARY) for i in N_s for j in N for l in L} # if drone l travels from i to j
-W = {i: m.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s} # Wait time at node i
+    # !!!! model !!!!
+    m = gp.Model("MIP_implementation")
 
-# set objective
-m.setObjective(gp.quicksum(T_v[i,j]*X[i,j] for (i,j) in A) + gp.quicksum(W[i] for i in N_s), gp.GRB.MINIMIZE)
+    # variables
+    X = {(i,j): m.addVar(vtype=gp.GRB.BINARY) for (i,j) in A} # if truck travels from i to j
+    H = {(i,j,l): m.addVar(vtype=gp.GRB.BINARY) for i in N_s for j in N for l in L} # if drone l travels from i to j
+    W = {i: m.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s} # Wait time at node i
 
-# constraints
-departFromDepot = m.addConstr(gp.quicksum(X["s",j] for j in N) == 1) # truck must depart from depot
+    # set objective
+    m.setObjective(gp.quicksum(T_v[i,j]*X[i,j] for (i,j) in A) + gp.quicksum(W[i] for i in N_s), gp.GRB.MINIMIZE)
 
-returnToDepot = m.addConstr(gp.quicksum(X[i,"t"] for i in N) == 1) # truck must return to depot
+    # constraints
+    departFromDepot = m.addConstr(gp.quicksum(X["s",j] for j in N) == 1) # truck must depart from depot
 
-noFlowAlongSameArc = {(i,j): 
-    m.addConstr(X[i,j] + X[j,i] <= 1) 
-    for (i,j) in A if i != "s" and j != "t"}
+    returnToDepot = m.addConstr(gp.quicksum(X[i,"t"] for i in N) == 1) # truck must return to depot
 
-flowConservation = {i:
-    m.addConstr(gp.quicksum(X[i,j] for j in N_t if j != i) == 
-                gp.quicksum(X[j,i] for j in N_s if j != i))
-    for i in N}
+    noFlowAlongSameArc = {(i,j): 
+        m.addConstr(X[i,j] + X[j,i] <= 1) 
+        for (i,j) in A if i != "s" and j != "t"}
 
-visitEachNode = {j: 
-    m.addConstr(gp.quicksum(X[i,j] for i in N_s if i != j) + 
-                gp.quicksum(H[i,j,l] for i in N_s for l in L if i != j) == 1)
-    for j in N} 
+    flowConservation = {i:
+        m.addConstr(gp.quicksum(X[i,j] for j in N_t if j != i) == 
+                    gp.quicksum(X[j,i] for j in N_s if j != i))
+        for i in N}
 
-droneDispatch = {i:
-    m.addConstr(M*gp.quicksum(X[i,j] for j in N_t if N_t[j] != N_s[i]) >= 
-                gp.quicksum(H[i,j,l] for j in N for l in L if j != i))
-    for i in N_s}
+    visitEachNode = {j: 
+        m.addConstr(gp.quicksum(X[i,j] for i in N_s if i != j) + 
+                    gp.quicksum(H[i,j,l] for i in N_s for l in L if i != j) == 1)
+        for j in N} 
 
-batteryConsumption = {l:
-    m.addConstr(gp.quicksum(H[i,j,l]*b_l[i,j,l] for i in N_s for j in N if i !=j) <= B_l[l])
-    for l in L}
+    droneDispatch = {i:
+        m.addConstr(M*gp.quicksum(X[i,j] for j in N_t if N_t[j] != N_s[i]) >= 
+                    gp.quicksum(H[i,j,l] for j in N for l in L if j != i))
+        for i in N_s}
 
-waitTime = {(i,l):
-    m.addConstr(W[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
-    for i in N_s for l in L}
+    batteryConsumption = {l:
+        m.addConstr(gp.quicksum(H[i,j,l]*b_l[i,j,l] for i in N_s for j in N if i !=j) <= B_l[l])
+        for l in L}
 
+    waitTime = {(i,l):
+        m.addConstr(W[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
+        for i in N_s for l in L}
 
-def Callback(model, where):
-    if where==gp.GRB.Callback.MIPSOL:
-        XV = model.cbGetSolution(X)
-        HV = model.cbGetSolution(H)
-        sets = find_sets(XV, A)
-        # if length of sets is larger than 1 then the solution is infeasible
-        if len(sets) > 1:
-            for sub in sets[1:]:
-                len_subtour = len(sub)
-                print(sets, "|||", sub)
-                model.cbLazy(gp.quicksum(X[i,j] for (i,j) in sub) <= len_subtour-eps)
-        peter_plot_path(XV, HV, N, N_s, N_st, A)
-
-m.setParam('LazyConstraints', 1)
-#m.setParam('outputflag', 0)
-m.optimize(Callback)
-
-X_vals = {(i,j): X[i,j].x for (i,j) in A}
-H_vals = {(i,j,l): H[i,j,l].x for i in N_s for j in N for l in L}
+    def Callback(model, where):
+        if where==gp.GRB.Callback.MIPSOL:
+            XV = model.cbGetSolution(X)
+            HV = model.cbGetSolution(H)
+            # peter_plot_path(XV, HV, N, N_s, N_st, A)
+            sets = find_sets(XV, A)
+            # if length of sets is larger than 1 then the solution is infeasible
+            if len(sets) > 1:
+                for sub in sets:
+                    len_subtour = len(sub)
+                    # print(sets, "|||", sub)
+                    model.cbLazy(gp.quicksum(X[i,j] for (i,j) in sub) <= len_subtour-1)
 
 
-if True:
+    m.setParam('LazyConstraints', 1)
+    #m.setParam('outputflag', 0)
+    m.optimize(Callback)
+    print(m.objVal)
+    X_vals = {(i,j): X[i,j].x for (i,j) in A}
+    H_vals = {(i,j,l): H[i,j,l].x for i in N_s for j in N for l in L}
+
+    if False:
+        print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+        print(f"battery usage: {[sum([H_vals[i,j,l]*b_l[i,j,l] for i in N_s for j in N if i != j]) for l in L]}")
+        print(f"truck path: {[(i,j) for (i,j) in A if X_vals[i,j] > 0.9]}")
+        print(f"drone decisions: {[(i,j,l) for i in N_s for j in N for l in L if H_vals[i,j,l] > 0.9]}")
     print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-    #print(f"battery usage: {[sum([H_vals[i,j,l]*b_l[i,j,l] for i in N_s for j in N if i != j]) for l in L]}")
-    print(f"truck path: {[(i,j) for (i,j) in A if X_vals[i,j] > 0.9]}")
-    print(f"drone decisions: {[(i,j,l) for i in N_s for j in N for l in L if H_vals[i,j,l] > 0.9]}")
-print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+
+    return X_vals, H_vals, N, N_s, N_st, A
+
+
 
 if __name__ == "__main__":
-    # Best objective 2.015393143872e+02, 174 (modding eqn) vs 177.2
+    X_vals, H_vals, N, N_s, N_st, A = MIP(p_n16_k8,p_n16_k8_s) # Best objective 2.015393143872e+02, 174 (modding eqn) vs 177.2
     peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
-    print(f"subtours {find_sets(X_vals, A)}")
+    if False:
+        X_vals, H_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 7.134488642268e+02, 635 (modding eqn) vs 677.7
+        peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)

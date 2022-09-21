@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import math
+import numpy as np
 
 # generate arc distances
 def generate_distances(all_arcs, N_st):
@@ -140,7 +141,7 @@ def find_sets(X_vals, A):
             added = False # boolean for if the arc has been added to subtour set yet
             for subtour in all_tours:
                 for (y,z) in subtour:
-                    if i == z or i == y:
+                    if i == z or i == y or j == z or j == y:
                         subtour.add((i,j))
                         added = True
                         break
@@ -148,3 +149,26 @@ def find_sets(X_vals, A):
                 all_tours.append(set())
                 all_tours[-1].add((i,j))
     return all_tours
+
+"""PETER"""
+def adjacencyMatrix(V, E):
+    # Construct an adjacency matrix for graph G(V, E)
+    # V is a list of vertices (nodes) and E is a list of edges (arcs)
+    M = np.zeros(shape=(len(V),len(V)))
+    for (i,j) in E:
+        M[V.index(i)][V.index(j)] = 1
+    return M
+
+
+"""PETER"""
+def generateComponent(label, Nst):
+    S = {}
+    for i in range(len(label)):
+        if label[i] not in S:
+            # print('opps')
+            S[label[i]] = [list(Nst)[i]]
+        else:
+            # print('!!!!!!!!!!!!!!!!!!!!!!!!')
+            S[label[i]].append(list(Nst)[i])
+    # print(S)
+    return list(S.values())
