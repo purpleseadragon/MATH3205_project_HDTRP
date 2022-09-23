@@ -162,6 +162,7 @@ def adjacencyMatrix(V, E):
 
 """PETER"""
 def generateComponent(label, Nst):
+    # collects components with same label together (i.e subroutes longer than len 1)
     S = {}
     for i in range(len(label)):
         if label[i] not in S:

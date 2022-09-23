@@ -1,6 +1,6 @@
 import gurobipy as gp
-import math
-from helper import plot_path, peter_plot_path, generate_distances, dist_betw_arcs
+
+from helper import peter_plot_path, generate_distances
 
 # data
 # P-n16-k8 augerat problem

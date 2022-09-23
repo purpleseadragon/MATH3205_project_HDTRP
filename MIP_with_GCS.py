@@ -1,10 +1,11 @@
 import gurobipy as gp
-import math
-from helper import peter_plot_path, generate_distances, dist_betw_arcs, adjacencyMatrix, generateComponent
+
+from helper import peter_plot_path, generate_distances, adjacencyMatrix, generateComponent
 
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
 
+import matplotlib.pyplot as plt
 
 # data
 # P-n16-k8 augerat problem
@@ -156,14 +157,19 @@ def MIP(N, s):
     # GCS Separation (Algorithm 1 from the paper)
         if where==gp.GRB.Callback.MIPSOL:
             XV = model.cbGetSolution(X)
+            HV = model.cbGetSolution(H)
             AA = [(i, j) for (i, j) in A if XV[i,j]>0]
-            # print(AA)
+            #print(AA)
+            #print(list(N_st))
             GG = csr_matrix(adjacencyMatrix(list(N_st), AA))
-            # print(GG.toarray())
+            #plt.imshow(GG.toarray())
             # Find all SCC on G
             _, label = connected_components(GG,directed=True,connection='strong')
-            # print(label)
+            #print(_)
+            #print(label)
             S = generateComponent(label, N_st)
+            #print(S)
+            #peter_plot_path(XV, HV, N, N_s, N_st, A)
             # C = []
             for s in S:
                 for k in s:
