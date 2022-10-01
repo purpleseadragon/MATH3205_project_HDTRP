@@ -152,7 +152,7 @@ def MIP(N, s):
         m.addConstr(W[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
         for i in N_s for l in L}
 
-
+    additionalPConstr = m.addConstr(gp.quicksum(X[i,j] for i in N for j in N_t if j != i)==25)
     def Callback(model,where):
     # GCS Separation (Algorithm 1 from the paper)
         if where==gp.GRB.Callback.MIPSOL:

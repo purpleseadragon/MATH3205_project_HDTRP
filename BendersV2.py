@@ -1,7 +1,6 @@
 import gurobipy as gp
 
-from helper import peter_plot_path, generate_distances, adjacencyMatrix, generateComponent, peter_plot_path2
-from load_test_peter import load_test
+from helper import peter_plot_path, generate_distances, adjacencyMatrix, generateComponent
 
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import connected_components
@@ -113,7 +112,33 @@ def MIP(N, s):
     # total required delivery time
     tau_l = {(i,j,l): (D[i,j]*2)/(drone_speeds*a[l]) + drone_service_time for i in N_s for j in N for l in L if i != j}
 
-    # !!!! model !!!!
+    # !!!! sub problem model !!!!
+    BSP = gp.Model("BSP")
+
+    H = {(i,j,l): BSP.addVar(vtype=gp.GRB.BINARY) for i in N_s for j in N for l in L} # if drone l travels from i to j
+    w = {i: BSP.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s} # waiting times or something
+
+    BSP.setObjective(gp.quicksum(w[i]) for i in N_s)
+
+    onlyDroneIfNoTruckVisitsNode = {j:
+        BSP.addConstr(gp.quicksum(H[i,j,l] for i in N_s for l in L if i != j) == 1-Z[j])
+        for j in N} # (24) (35)
+
+    onlyDroneFromNodeIfTruckVisited = {(i,j,l):
+        BSP.addConstr(Z[i]*len(N)>=H[i,j,l])
+        for i in N for j in N for l in L} # (25) (36) check this
+
+    batteryConsumption = {l:
+        BSP.addConstr(gp.quicksum(H[i,j,l]*b_l[i,j,l] for i in N_s for j in N if j !=i) <= B_l[l])
+        for l in L} # (26) / (33)
+
+    waitTime = {(i,l):
+        BSP.addConstr(w[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
+        for i in N_s for l in L} # (28) / (34) might be wrong
+
+    BSP.optimize()
+
+    # !!!! master model !!!!
     BMP = gp.Model("BMP")
 
 
@@ -121,6 +146,9 @@ def MIP(N, s):
     X = {(i,j): BMP.addVar(vtype=gp.GRB.BINARY) for (i,j) in A} # if truck travels from i to j (21)
     Z = {i: BMP.addVar(vtype=gp.GRB.BINARY) for i in N} # if truck visits a node (22)
     W = BMP.addVar(vtype=gp.GRB.CONTINUOUS)
+
+    # H = {(i,j,l): BMP.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s for j in N for l in L} # if drone l travels from i to j
+    # w = {i: BMP.addVar(vtype=gp.GRB.BINARY) for i in N_s} # waiting times or something
 
 
     # set objective (subtracking service time for back to depot) (16)
@@ -141,38 +169,33 @@ def MIP(N, s):
         BMP.addConstr(gp.quicksum(X[i,j] for j in N_t if j != i) == Z[i])
         for i in N} # (20)
 
-    nonNegativeW = BMP.addConstr(W >= 0) # (23)
+    # nonNegativeW = BMP.addConstr(W >= 0) # (20)
 
+    # onlyDroneIfNoTruckVisitsNode = {j:
+    #     BMP.addConstr(gp.quicksum(H[i,j,l] for i in N_s for l in L if i != j) == 1-Z[j])
+    #     for j in N} # (24)
 
-    # !!! added to master problem !!! ??
-    H = {(i,j,l): BMP.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s for j in N for l in L} # if drone l travels from i to j
-    w = {i: BMP.addVar(vtype=gp.GRB.BINARY) for i in N_s} # waiting times or something
+    # onlyDroneFromNodeIfTruckVisited = {(i,j,l):
+    #     BMP.addConstr(Z[i]>=H[i,j,l])
+    #     for i in N for j in N for l in L} # (25)
 
-    onlyDroneIfNoTruckVisitsNode = {j:
-        BMP.addConstr(gp.quicksum(H[i,j,l] for i in N_s for l in L if i != j) == 1-Z[j])
-        for j in N} # (24)
+    # batteryConsumption = {l:
+    #     BMP.addConstr(gp.quicksum(H[i,j,l]*b_l[i,j,l] for i in N_s for j in N if j !=i) <= B_l[l])
+    #     for l in L} # (26)
 
-    onlyDroneFromNodeIfTruckVisited = {(i,j,l):
-        BMP.addConstr(Z[i]>=H[i,j,l])
-        for i in N for j in N for l in L} # (25)
+    # bigW = BMP.addConstr(W >= gp.quicksum(w[i] for i in N_s)) # (27)
 
-    batteryConsumption = {l:
-        BMP.addConstr(gp.quicksum(H[i,j,l]*b_l[i,j,l] for i in N_s for j in N if j !=i) <= B_l[l])
-        for l in L} # (26)
+    # waitTime = {(i,l):
+    #     BMP.addConstr(w[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
+    #     for i in N_s for l in L} # (28) might be wrong
 
-    bigW = BMP.addConstr(W >= gp.quicksum(w[i] for i in N_s)) # (27)
-
-    waitTime = {(i,l):
-        BMP.addConstr(w[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
-        for i in N_s for l in L} # (28) might be wrong
-
-    hGreaterThanZero = {(i,j,l):
-        BMP.addConstr(H[i,j,l]>=0)
-        for i in N_s for j in N for l in L} # (29)
+    # hGreaterThanZero = {(i,j,l):
+    #     BMP.addConstr(H[i,j,l]>=0)
+    #     for i in N_s for j in N for l in L} # (29)
     
-    lowerBoundWaitTime = {(i,j):
-        BMP.addConstr(w[i] >= min([tau_l[i,j,l] for l in L])*gp.quicksum(H[i,j,l] for l in L))
-        for i in N_s for j in N if i != j} # (30)
+    # lowerBoundWaitTime = {(i,j):
+    #     BMP.addConstr(w[i] >= min([tau_l[i,j,l] for l in L])*gp.quicksum(H[i,j,l] for l in L))
+    #     for i in N_s for j in N if i != j} # (30)
 
     
     def Callback(model,where):
@@ -199,42 +222,16 @@ def MIP(N, s):
                         model.cbLazy(gp.quicksum(X[i,j] for (i,j) in deltaS)>=
                                     gp.quicksum(X[i,j] for (i,j) in deltaK))
 
-            # Benders sub problem cuts
-            # if not cuts_added:
-            #     BSP = gp.Model("BSP")
-
-            #     H = {(i,j,l): BSP.addVar(vtype=gp.GRB.BINARY) for i in N_s for j in N for l in L} # if drone l travels from i to j
-            #     w = {i: BSP.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s} # waiting times or something
-
-            #     BSP.setObjective(gp.quicksum(w[i]) for i in N_s)
-
-            #     onlyDroneIfNoTruckVisitsNode = {j:
-            #         BSP.addConstr(gp.quicksum(H[i,j,l] for i in N_s for l in L if i != j) == 1-Z[j])
-            #         for j in N} # (24) (35)
-
-            #     onlyDroneFromNodeIfTruckVisited = {(i,j,l):
-            #         BSP.addConstr(Z[i]*len(N)>=H[i,j,l])
-            #         for i in N for j in N for l in L} # (25) (36) check this
-
-            #     batteryConsumption = {l:
-            #         BSP.addConstr(gp.quicksum(H[i,j,l]*b_l[i,j,l] for i in N_s for j in N if j !=i) <= B_l[l])
-            #         for l in L} # (26) / (33)
-
-            #     waitTime = {(i,l):
-            #         BSP.addConstr(w[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
-            #         for i in N_s for l in L} # (28) / (34) might be wrong
-
-            #     BSP.optimize()
 
 
 
-            #     # check infeasibility (i.e if there is enough battery to deliver to each undelivered node) and add cuts
-            #     if BSP.Status == gp.GRB.INFEASIBLE:
-            #         N0 = [i for i in N if ZV[i].x ==0]
-            #         N1 = [i for i in N if ZV[i].x >0]
-            #         model.cbLazy(gp.quicksum(1-Z[i] for i in N0)+gp.quicksum(Z[i] for i in N1) >= 1)
-            #     # optimality
-            #     #elif ...
+            # check infeasibility (i.e if there is enough battery to deliver to each undelivered node) and add cuts
+            if BSP.Status == gp.GRB.INFEASIBLE:
+                N0 = [i for i in N if ZV[i].x ==0]
+                N1 = [i for i in N if ZV[i].x >0]
+                model.cbLazy(gp.quicksum(1-Z[i] for i in N0)+gp.quicksum(Z[i] for i in N1) >= 1)
+            # optimality
+                #elif ...
 
 
 
