@@ -18,7 +18,7 @@ truck_service_time = 10
 drone_flight_duration = 100
 drone_service_time = 5
 L = range(len(a))
-
+OBJBND = False
 
 def MIP_route_length(test,  p):
     """returns the optimal solution, p is given route length and test is test data"""  
@@ -109,10 +109,12 @@ def MIP_route_length(test,  p):
 
 
     def Callback(model, where):
+        global OBJBND
         if where == gp.GRB.Callback.MIPNODE:
             nodecount = model.cbGet(gp.GRB.Callback.MIPNODE_NODCNT)
-            print(model.cbGet(gp.GRB.Callback.MIPNODE_OBJBND))
+            #print(model.cbGet(gp.GRB.Callback.MIPNODE_OBJBND))
             if nodecount > 0:
+                OBJBND = model.cbGet(gp.GRB.Callback.MIPNODE_OBJBND)
                 model.terminate()
 
     m.setParam('OutputFlag', 0)
@@ -128,32 +130,36 @@ def MIP_route_length(test,  p):
         print(f"drone decisions: {[(i,j,l) for i in N_s for j in N for l in L if H_vals[i,j,l] > 0.9]}")
         print(f"order: {[V_vals[i] for i in V_vals]}")
     # print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%\n\n%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-    return m.MIPNODE_OBJBND
+    return OBJBND
 
 
 def length_bounding(Z_hat, p_under, test):
     """finds lower bound of HDTRP"""
     N = test['N']
     len_N = len(N) # ???
+    print(f"there are {len_N} nodes not including the source / sink node")
     p = p_under + round((len_N - p_under)/3)
     new_z = 0
+    print(f"finding smallest possible masx route length")
     while True:
         Z_p = MIP_route_length(test, p)
         print(f"given p = {p}, Z_p={Z_p:.2f}")
         if Z_p <= Z_hat:
             break
-        elif p_under == p:
-            break
+        # elif p_under == p:
+        #     break
         else:
             p = p_under + round((p-p_under+1)/3)
     p_hat = p
     ps_list = []
     for i in range(p_hat+1, len_N):
         ps_list.append(i)
+    print(f"iterating through possible ps {ps_list} ")
     for p in ps_list:
         Z_p = MIP_route_length(test, p)
         if Z_p > Z_hat:
             p_upper = p - 1 # max truck route length
+            print(f"the upper bound for truck route length is {p_upper}")
             break
     try:
         return p_upper
@@ -163,10 +169,10 @@ def length_bounding(Z_hat, p_under, test):
 
 if __name__ == "__main__":
     obj_val1 = MIP_route_length(test2, 23) 
-    obj_val2 = RootRelaxPp(test2, 23) 
-    print(f"mine: {obj_val1}, peters: {obj_val2}")
+    #obj_val2 = RootRelaxPp(test2, 23) 
+    print(f"mine: {obj_val1}")
 
     # Result of Primal Heuristic: Z^=741.0981772209472, p_=20
-    print(length_bounding(741.0981772209472, 20, test2))
+    length_bounding(741.0981772209472, 20, test2)
     # X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 
     # peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
