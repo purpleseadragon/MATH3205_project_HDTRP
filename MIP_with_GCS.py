@@ -7,69 +7,19 @@ from scipy.sparse.csgraph import connected_components
 
 import matplotlib.pyplot as plt
 
-# data
-# P-n16-k8 augerat problem
-p_n16_k8= {
-"n0": (37, 52),
-"n1": (49, 49),
-"n2": (52, 64),
-"n3": (31, 62),
-"n4": (52, 33),
-"n5": (42, 41),
-"n6": (52, 41),
-"n7": (57, 58),
-"n8": (62, 42),
-"n9": (42, 57),
-"n10": (27, 68),
-"n11": (43, 67),
-"n12": (58, 48),
-"n13": (58, 27),
-"n14": (37, 69)
-}
+import sys
 
-p_n16_k8_s = (30, 40)
+sys.path.insert(1, r'C:\Users\o_dav\Dropbox\2022Sem2\math3205\project\math3205project\test')
 
-# A-n37-k5
-a_n37_k5 = {
-'n0 ':(59, 46),
-'n1 ':(96 ,42),
-'n2 ':(47 ,61),
-'n3 ':(26 ,15),
-'n4 ':(66 ,6 ),
-'n5 ':(96 ,7 ),
-'n6 ':(37 ,25),
-'n7 ':(68 ,92),
-'n8 ':(78 ,84),
-'n9 ':(82 ,28),
-'n10':(93, 90),
-'n11':(74, 42),
-'n12':(60, 20),
-'n13':(78, 58),
-'n14':(36, 48),
-'n15':(45, 36),
-'n16':(73, 57),
-'n17':(10, 91),
-'n18':(98, 51),
-'n19':(92, 62),
-'n20':(43, 42),
-'n21':(53, 25),
-'n22':(78, 65),
-'n23':(72, 79),
-'n24':(37, 88),
-'n25':(16, 73),
-'n26':(75, 96),
-'n27':(11, 66),
-'n28':(9 ,49 ),
-'n29':(25, 72),
-'n30':(8 ,68 ),
-'n31':(12, 61),
-'n32':(50, 2 ),
-'n33':(26, 54),
-'n34':(18, 89),
-'n35':(22, 53)
-}
-
-a_n37_k5_s = (38, 46)
+from load_test import load_test
+ 
+# test = load_test('A')['A-n37-k5']
+test = load_test('P')['P-n16-k8']
+# test = load_test('P')['P-n19-k2']
+N = test['N']
+Ns = test['Ns']
+Nt = test['Nt']
+Nst = test['Nst']
 
 # default data
 drone_num = 2
@@ -83,18 +33,14 @@ drone_service_time = 5
 L = range(len(a))
 EPS = 0.8
 
-def MIP(N, s):
+def MIP(test):
     """Takes in a dictionary of nodes and a source node and returns the optimal solution"""  
     # s is first node (source depot)
     # t is last node (sink depot)
-    N_s = N.copy()
-    N_t = N.copy()
-    N_st = N.copy()
-    t = s
-    N_t['t'] = t
-    N_s['s'] = s
-    N_st['s'] = s
-    N_st['t'] = t
+    N = test['N']
+    N_s = test['Ns']
+    N_t = test['Nt']
+    N_st = test['Nst']
 
     # generate arcs
     A = [(i,j) for i in N_s for j in N_t if N_s[i] != N_t[j]]
@@ -152,7 +98,7 @@ def MIP(N, s):
         m.addConstr(W[i] >= gp.quicksum(H[i,j,l]*tau_l[i,j,l] for j in N if j != i))
         for i in N_s for l in L}
 
-    additionalPConstr = m.addConstr(gp.quicksum(X[i,j] for i in N for j in N_t if j != i)==25)
+    # additionalPConstr = m.addConstr(gp.quicksum(X[i,j] for i in N for j in N_t if j != i)==25)
     def Callback(model,where):
     # GCS Separation (Algorithm 1 from the paper)
         if where==gp.GRB.Callback.MIPSOL:
@@ -198,8 +144,8 @@ def MIP(N, s):
 
 
 if __name__ == "__main__":
-    # X_vals, H_vals, N, N_s, N_st, A = MIP(p_n16_k8,p_n16_k8_s) # Best objective 2.015393143872e+02, 174 (modding eqn) vs 177.2
-    # peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
-
-    X_vals, H_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 
+    X_vals, H_vals, N, N_s, N_st, A = MIP(test) # Best objective 2.015393143872e+02, 174 (modding eqn) vs 177.2
     peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
+
+    # X_vals, H_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 
+    # peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)

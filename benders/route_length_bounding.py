@@ -139,8 +139,7 @@ def length_bounding(Z_hat, p_under, test):
     len_N = len(N) # ???
     print(f"there are {len_N} nodes not including the source / sink node")
     p = p_under + round((len_N - p_under)/3)
-    new_z = 0
-    print(f"finding smallest possible masx route length")
+    print(f"finding smallest possible max route length")
     while True:
         Z_p = MIP_route_length(test, p)
         print(f"given p = {p}, Z_p={Z_p:.2f}")
@@ -154,9 +153,10 @@ def length_bounding(Z_hat, p_under, test):
     ps_list = []
     for i in range(p_hat+1, len_N):
         ps_list.append(i)
-    print(f"iterating through possible ps {ps_list} ")
+    print(f"iterating through possible route lengths {ps_list} ")
     for p in ps_list:
         Z_p = MIP_route_length(test, p)
+        print(f"A route length of {p} gives a route relaxation objective of {Z_p:.2f}")
         if Z_p > Z_hat:
             p_upper = p - 1 # max truck route length
             print(f"the upper bound for truck route length is {p_upper}")

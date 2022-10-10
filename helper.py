@@ -1,8 +1,9 @@
+import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.path import Path
 import matplotlib.patches as patches
 import math
-import numpy as np
+
 
 # generate arc distances
 def generate_distances(all_arcs, N_st):
