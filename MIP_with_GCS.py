@@ -13,13 +13,9 @@ sys.path.insert(1, r'C:\Users\o_dav\Dropbox\2022Sem2\math3205\project\math3205pr
 
 from load_test import load_test
  
-# test = load_test('A')['A-n37-k5']
-test = load_test('P')['P-n16-k8']
+test = load_test('A')['A-n37-k5']
+#test = load_test('P')['P-n16-k8']
 # test = load_test('P')['P-n19-k2']
-N = test['N']
-Ns = test['Ns']
-Nt = test['Nt']
-Nst = test['Nst']
 
 # default data
 drone_num = 2
@@ -28,10 +24,16 @@ a = [1, 1.5]
 drone_battery = B_l = [100, 130] # max flight time
 truck_speed = 1
 truck_service_time = 10
-drone_flight_duration = 100
+#drone_flight_duration = 100
 drone_service_time = 5
 L = range(len(a))
 EPS = 0.8
+b = [1,1]
+
+# alternate drone data (from powerpoint)
+drone_battery = B_l = [100, 50]
+a = [0.4, 0.2]
+b = [0.4, 0.2]
 
 def MIP(test):
     """Takes in a dictionary of nodes and a source node and returns the optimal solution"""  
@@ -52,11 +54,11 @@ def MIP(test):
     # generate truck wait time!!!!!!!!!!!!!!!!!!!!!
     T_v = {(i,j): truck_service_time + D[i,j]/truck_speed for (i,j) in A}
 
-    # generate drone delivery times (battery usage), includes service time !!!!!!!!!!!!!!!!! -> why would service time affect drone battery usage?
-    b_l = {(i,j,l): a[l]*((D[i,j]*2)/(drone_speeds) + drone_service_time) for i in N_s for j in N for l in L if i != j}
+    # generate drone battery usage, includes service time
+    b_l = {(i,j,l): 2*D[i,j]/drone_speeds + drone_service_time*b[l] for i in N_s for j in N for l in L if i != j}
 
     # total required delivery time
-    tau_l = {(i,j,l): (D[i,j]*2)/(drone_speeds*a[l]) + drone_service_time for i in N_s for j in N for l in L if i != j}
+    tau_l = {(i,j,l): a[l]*D[i,j]*2/drone_speeds + drone_service_time*b[l] for i in N_s for j in N for l in L if i != j}
 
     # !!!! model !!!!
     m = gp.Model("MIP_implementation")
@@ -67,7 +69,7 @@ def MIP(test):
     W = {i: m.addVar(vtype=gp.GRB.CONTINUOUS) for i in N_s} # Wait time at node i
 
     # set objective (subtracking service time for back to depot)
-    m.setObjective(gp.quicksum(T_v[i,j]*X[i,j] for (i,j) in A) + gp.quicksum(W[i] for i in N_s) - truck_service_time, gp.GRB.MINIMIZE)
+    m.setObjective(gp.quicksum(T_v[i,j]*X[i,j] for (i,j) in A) + gp.quicksum(W[i] for i in N_s)- truck_service_time, gp.GRB.MINIMIZE)
 
     # constraints
     departFromDepot = m.addConstr(gp.quicksum(X["s",j] for j in N) == 1) # truck must depart from depot

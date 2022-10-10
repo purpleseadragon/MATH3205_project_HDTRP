@@ -176,5 +176,5 @@ if __name__ == "__main__":
     X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(p_n16_k8,p_n16_k8_s) # Best objective 2.015393143872e+02, 174 (modding eqn) vs 177.2
     peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
 
-    X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 
-    peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
+    # X_vals, H_vals, V_vals, N, N_s, N_st, A = MIP(a_n37_k5,a_n37_k5_s) # Best objective 
+    # peter_plot_path(X_vals, H_vals, N, N_s, N_st, A)
